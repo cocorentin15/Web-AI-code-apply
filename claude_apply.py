@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-apply_claude.py
+claude_apply.py
 
 Lit le presse-papiers, détecte des blocs au format :
 
@@ -14,7 +14,7 @@ React Native, Java, etc.) : le script ne connaît que le format de
 bloc, rien du contenu.
 
 Usage :
-    python apply_claude.py
+    python claude_apply.py
 
 N'utilise que la bibliothèque standard. La lecture du presse-papiers
 se fait via un outil du système (pbpaste / clip / xclip / xsel) pour
