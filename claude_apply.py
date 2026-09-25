@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-claude_apply.py
+apply_claude.py
 
 Lit le presse-papiers, détecte des blocs au format :
 
@@ -14,15 +14,29 @@ React Native, Java, etc.) : le script ne connaît que le format de
 bloc, rien du contenu.
 
 Usage :
-    python claude_apply.py
+    python apply_claude.py                # lit le presse-papiers
+    python apply_claude.py chemin/fichier.txt   # lit un fichier texte
 
-N'utilise que la bibliothèque standard. La lecture du presse-papiers
-se fait via un outil du système (pbpaste / clip / xclip / xsel) pour
-éviter toute dépendance externe ; si aucun de ces outils n'est
-disponible et que le module optionnel "pyperclip" est installé, il
-est utilisé en repli.
+N'utilise que la bibliothèque standard.
+
+Si un argument est fourni, il est lu comme un fichier texte (UTF-8) :
+c'est le mode le plus fiable, indépendant de l'OS et des outils
+disponibles (pratique sous Ubuntu/WSL/SSH où le presse-papiers
+système n'est pas toujours accessible).
+
+Sans argument, le script lit le presse-papiers, spécifiquement par
+plateforme :
+- Windows : appel direct de l'API Windows via ctypes (pas de sous-
+  processus, donc aucun souci d'encodage de console).
+- macOS   : commande "pbpaste", décodée explicitement en UTF-8.
+- Linux   : "xclip" ou "xsel" (à installer : "sudo apt install
+  xclip"), décodée explicitement en UTF-8. Si aucun des deux n'est
+  disponible (ou pas de serveur X), utilisez plutôt le mode fichier.
+Si aucune de ces méthodes ne fonctionne et que le module optionnel
+"pyperclip" est installé, il est utilisé en repli.
 """
 
+import platform
 import re
 import sys
 import subprocess
@@ -37,24 +51,71 @@ BLOCK_PATTERN = re.compile(
 )
 
 
-def read_clipboard() -> str:
-    """Récupère le texte du presse-papiers, sans dépendance obligatoire."""
-    commands = [
-        ["pbpaste"],                                   # macOS
-        ["powershell.exe", "-command", "Get-Clipboard"],  # Windows
-        ["xclip", "-selection", "clipboard", "-o"],    # Linux (xclip)
-        ["xsel", "--clipboard", "--output"],           # Linux (xsel)
-    ]
-    for cmd in commands:
-        try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, check=True
-            )
-            return result.stdout
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            continue
+def read_clipboard_windows():
+    """
+    Lit le presse-papiers Windows directement via l'API Win32 (ctypes),
+    sans passer par un sous-processus. Évite tout problème d'encodage
+    de console : le presse-papiers texte Windows est déjà en UTF-16,
+    on le récupère tel quel.
+    Retourne None si le presse-papiers ne contient pas de texte.
+    """
+    import ctypes
 
-    # Repli optionnel si aucun outil système n'a fonctionné.
+    CF_UNICODETEXT = 13
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    if not user32.OpenClipboard(0):
+        return None
+    try:
+        handle = user32.GetClipboardData(CF_UNICODETEXT)
+        if not handle:
+            return None
+        pointer = kernel32.GlobalLock(handle)
+        if not pointer:
+            return None
+        try:
+            data = ctypes.wstring_at(pointer)
+        finally:
+            kernel32.GlobalUnlock(handle)
+        return data
+    finally:
+        user32.CloseClipboard()
+
+
+def read_clipboard_command(cmd):
+    """Exécute une commande externe et décode sa sortie en UTF-8."""
+    result = subprocess.run(cmd, capture_output=True, check=True)
+    return result.stdout.decode("utf-8", errors="replace")
+
+
+def read_clipboard() -> str:
+    """Récupère le texte du presse-papiers selon la plateforme courante."""
+    system = platform.system()
+
+    if system == "Windows":
+        try:
+            text = read_clipboard_windows()
+            if text is not None:
+                return text
+        except OSError:
+            pass
+    elif system == "Darwin":
+        try:
+            return read_clipboard_command(["pbpaste"])
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            pass
+    else:
+        for cmd in (
+            ["xclip", "-selection", "clipboard", "-o"],
+            ["xsel", "--clipboard", "--output"],
+        ):
+            try:
+                return read_clipboard_command(cmd)
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                continue
+
+    # Repli optionnel si la méthode native n'a pas fonctionné.
     try:
         import pyperclip  # type: ignore
         return pyperclip.paste()
@@ -63,7 +124,7 @@ def read_clipboard() -> str:
 
     print(
         "Erreur : impossible de lire le presse-papiers "
-        "(aucun outil système trouvé, pyperclip non installé).",
+        "(aucune méthode système n'a fonctionné, pyperclip non installé).",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -86,18 +147,26 @@ def write_file(relative_path: str, content: str) -> Path:
 
 
 def main():
-    clipboard_text = read_clipboard()
+    if len(sys.argv) > 1:
+        source_path = Path(sys.argv[1])
+        try:
+            source_text = source_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"Erreur : impossible de lire '{source_path}' : {exc}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        source_text = read_clipboard()
 
-    if not clipboard_text.strip():
-        print("Erreur : le presse-papiers est vide.", file=sys.stderr)
+    if not source_text.strip():
+        print("Erreur : la source (presse-papiers ou fichier) est vide.", file=sys.stderr)
         sys.exit(1)
 
-    blocks = extract_blocks(clipboard_text)
+    blocks = extract_blocks(source_text)
 
     if not blocks:
         print(
             "Aucun bloc '=== FILE: ... === / === END FILE ===' détecté "
-            "dans le presse-papiers.",
+            "dans la source fournie.",
             file=sys.stderr,
         )
         sys.exit(1)
