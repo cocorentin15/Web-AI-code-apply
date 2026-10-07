@@ -216,6 +216,10 @@ def read_clipboard() -> str:
 
 # --- Nettoyage et extraction des blocs --------------------------------------
 
+FENCE_OPEN = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})\s*[\w+#.\-]*\s*$")
+FENCE_CLOSE = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})\s*$")
+
+
 def _strip_outer_fence(content: str) -> str:
     """
     Si TOUT le contenu du fichier est enveloppé dans une unique fence
@@ -238,25 +242,20 @@ def _strip_outer_fence(content: str) -> str:
 
 
         #!/usr/bin/env python3
-"""
-
+    """
     lines = content.splitlines()
-
-    # Retire les lignes vides en début et fin.
     while lines and not lines[0].strip():
         lines.pop(0)
     while lines and not lines[-1].strip():
         lines.pop()
 
-    if (
-        len(lines) >= 2
-        and FENCE_OPEN.match(lines[0])
-        and FENCE_CLOSE.match(lines[-1])
-    ):
-        lines = lines[1:-1]
+    if len(lines) >= 2:
+        open_m = FENCE_OPEN.match(lines[0])
+        close_m = FENCE_CLOSE.match(lines[-1])
+        if open_m and close_m and open_m.group("fence") == close_m.group("fence"):
+            lines = lines[1:-1]
 
     return "\n".join(lines)
-
 
 def extract_blocks(text: str):
     """
