@@ -87,13 +87,16 @@ Usage
     python claude_apply.py reponse.txt --dry-run     # n'écrit rien
     python claude_apply.py reponse.txt --root mon_projet
     cat reponse.txt | python claude_apply.py -       # lit stdin
+    python claude_apply.py --copy-prompt             # copie PROMPT_CLAUDE.md
 
 Code de sortie : 0 si tout est appliqué, 1 s'il y a eu au moins une erreur.
 Dépendances : uniquement la bibliothèque standard Python.
 """
 
 import argparse
+import platform
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -446,6 +449,140 @@ def apply_one(text: str, find: str, repl: str) -> str:
     raise ValueError("bloc FIND introuvable")
 
 
+# --- Presse-papiers ---------------------------------------------------------
+
+PROMPT_FILE = "PROMPT_CLAUDE.md"
+
+
+def _copy_windows(text: str) -> bool:
+    """
+    Écrit dans le presse-papiers Windows via l'API Win32 en ctypes.
+
+    Pourquoi ne pas lancer "clip" ? Parce qu'un sous-processus passe par la
+    console, dont l'encodage est une plaie (CP850, CP1252, UTF-8...). En
+    appelant directement SetClipboardData, on dépose la chaîne UTF-16 telle
+    quelle, sans dépendre de la page de codes de la console.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    CF_UNICODETEXT = 13
+    GMEM_MOVEABLE = 0x0002
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    # Sur Windows 64 bits, un HANDLE/pointeur ne tient pas dans un int : sans
+    # restype explicite, ctypes tronque la valeur et le memmove écrit n'importe
+    # où. On déclare donc les signatures précises utilisées.
+    kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+    kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+    kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalLock.restype = wintypes.LPVOID
+    kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalFree.argtypes = [wintypes.HGLOBAL]
+    user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+    user32.SetClipboardData.restype = wintypes.HANDLE
+
+    # Chaîne UTF-16 terminée par un NUL (le format attendu par le presse-papiers).
+    data = (text + "\0").encode("utf-16-le")
+
+    if not user32.OpenClipboard(0):
+        return False
+    try:
+        if not user32.EmptyClipboard():
+            return False
+        h = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+        if not h:
+            return False
+        p = kernel32.GlobalLock(h)
+        if not p:
+            kernel32.GlobalFree(h)
+            return False
+        try:
+            ctypes.memmove(p, data, len(data))
+        finally:
+            kernel32.GlobalUnlock(h)
+        # Après SetClipboardData, la mémoire appartient au presse-papiers :
+        # il ne faut PAS la libérer nous-mêmes.
+        if not user32.SetClipboardData(CF_UNICODETEXT, h):
+            kernel32.GlobalFree(h)
+            return False
+        return True
+    finally:
+        user32.CloseClipboard()
+
+
+def _copy_command(cmd, text: str):
+    """Lance un utilitaire externe (pbcopy, xclip, xsel, wl-copy) qui lit stdin."""
+    subprocess.run(cmd, input=text.encode("utf-8"), check=True)
+
+
+def write_clipboard(text: str) -> bool:
+    """
+    Écrit `text` dans le presse-papiers selon la plateforme, avec plusieurs
+    replis en cascade. Retourne True si une méthode a réussi.
+    """
+    system = platform.system()
+
+    if system == "Windows":
+        try:
+            if _copy_windows(text):
+                return True
+        except OSError:
+            # Échec de l'API Win32 : on tentera pyperclip en repli.
+            pass
+    elif system == "Darwin":
+        try:
+            _copy_command(["pbcopy"], text)
+            return True
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            pass
+    else:
+        # Linux et autres Unix : Wayland d'abord, puis X11 (xclip, xsel).
+        for cmd in (
+            ["wl-copy"],
+            ["xclip", "-selection", "clipboard", "-i"],
+            ["xsel", "--clipboard", "--input"],
+        ):
+            try:
+                _copy_command(cmd, text)
+                return True
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                continue
+
+    # Repli optionnel : pyperclip, s'il est installé (bibliothèque tierce,
+    # donc pas de dépendance dure).
+    try:
+        import pyperclip  # type: ignore
+
+        pyperclip.copy(text)
+        return True
+    except Exception:
+        return False
+
+
+def copy_prompt() -> int:
+    """Copie PROMPT_CLAUDE.md (à côté du script) dans le presse-papiers."""
+    prompt_path = Path(__file__).resolve().parent / PROMPT_FILE
+    try:
+        text = prompt_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"Erreur : impossible de lire '{prompt_path}' : {exc}", file=sys.stderr)
+        return 1
+
+    if write_clipboard(text):
+        print(f"Prompt copié dans le presse-papiers : {prompt_path}")
+        return 0
+
+    print(
+        "Erreur : impossible d'écrire dans le presse-papiers "
+        "(aucune méthode système n'a fonctionné, pyperclip non installé).",
+        file=sys.stderr,
+    )
+    return 1
+
+
 # --- Programme principal ----------------------------------------------------
 
 def main():
@@ -455,7 +592,15 @@ def main():
     ap.add_argument("source", nargs="?", default="-", help="fichier texte à lire ('-' ou absent = stdin)")
     ap.add_argument("--root", default=".", help="dossier racine du projet (défaut : dossier courant)")
     ap.add_argument("--dry-run", action="store_true", help="simule sans rien écrire ni supprimer")
+    ap.add_argument(
+        "--copy-prompt",
+        action="store_true",
+        help="copie le contenu de PROMPT_CLAUDE.md dans le presse-papiers puis quitte",
+    )
     args = ap.parse_args()
+
+    if args.copy_prompt:
+        sys.exit(copy_prompt())
 
     if args.source == "-":
         if sys.stdin.isatty():

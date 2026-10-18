@@ -23,6 +23,7 @@ python claude_apply.py response.txt
 python claude_apply.py response.txt --dry-run
 python claude_apply.py response.txt --root my_project
 cat response.txt | python claude_apply.py -
+python claude_apply.py --copy-prompt
 ```
 
 | Argument | Meaning |
@@ -30,6 +31,7 @@ cat response.txt | python claude_apply.py -
 | `source` | Text file containing the AI's answer. Use `-` (or nothing) to read from stdin. |
 | `--root DIR` | Project root. All paths are relative to it and cannot escape it. Default: current directory. |
 | `--dry-run` | Simulate everything. Nothing is written or deleted, and the summary shows what would happen. |
+| `--copy-prompt` | Copy the contents of `PROMPT_CLAUDE.md` (next to the script) to the clipboard, then quit. Convenient for pasting the output rules into a chat without opening the file. |
 
 The script prints a summary (created, replaced, patched, deleted, and a list of errors). The exit code is 0 if everything was applied and 1 if there was at least one error.
 
@@ -104,7 +106,7 @@ The parser forgives common formatting accidents:
 ## Recommended workflow
 
 1. Pack your repository with Repomix and copy it to the clipboard: `npx repomix --copy`.
-2. Paste it in the chat, with the contents of `PROMPT_CLAUDE.md` and your request.
+2. Paste it in the chat, with the contents of `PROMPT_CLAUDE.md` (or run `python claude_apply.py --copy-prompt` to copy it) and your request.
 3. Copy the AI's complete answer into a text file, for example `response.txt`.
 4. Run `python claude_apply.py response.txt --dry-run` and check the summary and the errors.
 5. Run it again without `--dry-run`, then review the changes with `git diff`.
