@@ -2,32 +2,31 @@
 """
 claude_apply.py
 
-Applique automatiquement une réponse de Claude qui suit l'un des deux modes
-du prompt de règles de sortie (voir PROMPT_CLAUDE.md) : fichiers complets
-(MODE SCRIPT), patches FIND / REPLACE (MODE PETITE IA) et suppressions.
+Automatically applies a Claude answer that follows one of the two modes of the
+output-rules prompt (see PROMPT_CLAUDE.md): complete files (SCRIPT MODE),
+FIND / REPLACE patches (SMALL-AI MODE) and deletions.
 
-Dans les exemples ci-dessous, le "|" en début de ligne sert uniquement à la
-lisibilité et à ne laisser dans ce fichier aucune ligne d'en-tête (le parseur
-reconnaît un en-tête même indenté, y compris dans un fichier complet). Il ne
-fait PAS partie de la syntaxe.
+In the examples below, the leading "|" is only for readability and to leave no
+header line in this file (the parser recognizes a header even when indented,
+including inside a complete file). It is NOT part of the syntax.
 
-MODE SCRIPT (fichier complet) :
+SCRIPT MODE (complete file):
 
-    | === FILE: chemin/vers/fichier ===
-    | contenu complet...
+    | === FILE: path/to/file ===
+    | complete content...
     | === END FILE ===
 
-MODE PETITE IA (patch compact) :
+SMALL-AI MODE (compact patch):
 
-    | FILE: chemin/vers/fichier
+    | FILE: path/to/file
     | FIND
-    | [bloc exact]
+    | [exact block]
     | REPLACE
-    | [nouveau bloc]
+    | [new block]
 
-  ou, pour plusieurs modifications dans un même fichier :
+  or, for several changes in the same file:
 
-    | FILE: chemin/vers/fichier
+    | FILE: path/to/file
     | PATCH 1
     | FIND
     | ...
@@ -39,58 +38,57 @@ MODE PETITE IA (patch compact) :
     | REPLACE
     | ...
 
-SUPPRESSION (fichiers uniquement) :
+DELETE (files only):
 
-    | === DELETE FILE: chemin/vers/fichier ===
+    | === DELETE FILE: path/to/file ===
 
-  ou, forme tolérée, une ligne seule, en MAJUSCULES, en début de ligne
-  (reconnue uniquement hors d'un bloc de fichier complet) :
+  or, tolerated form, a single line, in UPPERCASE, at the start of the line
+  (recognized only outside a complete-file block):
 
-    | DELETE FILE: chemin/vers/fichier
+    | DELETE FILE: path/to/file
 
-Les trois formes peuvent être mélangées dans un même texte. Les opérations
-s'exécutent dans l'ordre du texte : supprimer puis recréer le même chemin
-dans la même réponse fonctionne.
+The three forms can be mixed in one text. Operations run in the order of the
+text: deleting then recreating the same path in the same answer works.
 
-Règles d'application
---------------------
-- Patch : le bloc FIND doit exister EXACTEMENT UNE FOIS dans le fichier.
-  Si l'exact échoue, on retente en ignorant les espaces en fin de ligne.
-  0 occurrence ou plusieurs occurrences => erreur, rien n'est écrit
-  pour ce fichier (tout ou rien par fichier).
-- Les patches d'un fichier sont appliqués dans l'ordre, en mémoire ;
-  le fichier n'est écrit que si TOUS réussissent.
-- REPLACE vide = suppression du bloc (la ligne est supprimée aussi).
-- Les fins de ligne CRLF d'un fichier existant sont préservées.
-- Suppression : fichier existant uniquement. Un dossier est refusé et les
-  dossiers parents ne sont jamais supprimés. Fichier inexistant = erreur.
-- Les chemins doivent rester dans le dossier racine (--root, par défaut
-  le dossier courant) : pas de chemin absolu ni de "..".
+Application rules
+-----------------
+- Patch: the FIND block must exist EXACTLY ONCE in the file.
+  If the exact match fails, we retry ignoring trailing whitespace.
+  0 occurrences or several occurrences => error, nothing is written
+  for that file (all or nothing per file).
+- Patches for a file are applied in order, in memory;
+  the file is written only if ALL of them succeed.
+- Empty REPLACE = deletion of the block (the line is removed too).
+- CRLF line endings of an existing file are preserved.
+- Delete: existing file only. A directory is refused and parent
+  directories are never deleted. Missing file = error.
+- Paths must stay inside the root folder (--root, by default
+  the current directory): no absolute path and no "..".
 
-Tolérances
+Tolerances
 ----------
-- Bannières : sans deux-points, casse libre, 2 "=" ou plus, indentation.
-- La ligne de fin de fichier est optionnelle : le bloc s'arrête au prochain
-  en-tête ou à la fin du texte (donc tout texte qui suit est absorbé).
-- Fences markdown (trois ` ou trois ~, avec ou sans langage / espace)
-  autour du texte entier, d'un fichier ou d'un bloc FIND / REPLACE : retirées.
-- Les mots-clés du mode patch (FILE:, FIND, REPLACE, PATCH n) doivent être
-  en MAJUSCULES et en début de ligne, pour ne pas être confondus avec du
-  contenu.
+- Banners: no colon, any case, 2 "=" or more, indentation.
+- The end-of-file line is optional: the block stops at the next
+  header or at the end of the text (so any text after it is absorbed).
+- Markdown fences (three ` or three ~, with or without language / space)
+  around the whole text, a file or a FIND / REPLACE block: removed.
+- The patch-mode keywords (FILE:, FIND, REPLACE, PATCH n) must be
+  in UPPERCASE and at the start of the line, so they are not mistaken for
+  content.
 
-Limite connue : pas d'échappement. Une ligne qui ressemble à un en-tête est
-traitée comme tel même au milieu du contenu d'un fichier.
+Known limitation: no escaping. A line that looks like a header is
+treated as one even in the middle of a file's content.
 
 Usage
 -----
-    python claude_apply.py reponse.txt
-    python claude_apply.py reponse.txt --dry-run     # n'écrit rien
-    python claude_apply.py reponse.txt --root mon_projet
-    cat reponse.txt | python claude_apply.py -       # lit stdin
-    python claude_apply.py --copy-prompt             # copie PROMPT_CLAUDE.md
+    python claude_apply.py response.txt
+    python claude_apply.py response.txt --dry-run     # writes nothing
+    python claude_apply.py response.txt --root my_project
+    cat response.txt | python claude_apply.py -       # reads stdin
+    python claude_apply.py --copy-prompt             # copies PROMPT_CLAUDE.md
 
-Code de sortie : 0 si tout est appliqué, 1 s'il y a eu au moins une erreur.
-Dépendances : uniquement la bibliothèque standard Python.
+Exit code: 0 if everything is applied, 1 if there was at least one error.
+Dependencies: Python standard library only.
 """
 
 import argparse
@@ -101,35 +99,35 @@ import sys
 from pathlib import Path
 
 
-# --- Expressions régulières -------------------------------------------------
-# Les en-têtes tolèrent l'indentation (\s* en début) : une réponse copiée
-# depuis un chat arrive souvent décalée. Conséquence : une ligne d'en-tête est
-# reconnue même indentée, y compris à l'intérieur d'un fichier complet.
+# --- Regular expressions ----------------------------------------------------
+# Headers tolerate indentation (\s* at the start): an answer copied
+# from a chat often arrives indented. Consequence: a header line is
+# recognized even indented, including inside a complete file.
 
-# Bannière de fichier complet (mode script) : ":" optionnel, casse libre,
-# 2 signes "=" ou plus de chaque côté.
+# Complete-file banner (script mode): ":" optional, any case,
+# 2 or more "=" signs on each side.
 START_PATTERN = re.compile(
     r"^\s*={2,}\s*FILE\s*:?\s*(?P<path>.+?)\s*={2,}\s*$", re.IGNORECASE
 )
-# Fin de fichier complet.
+# End of complete file.
 END_PATTERN = re.compile(r"^\s*={2,}\s*END\s+FILE\s*={2,}\s*$", re.IGNORECASE)
 
-# Suppression : bannière (mêmes tolérances que START_PATTERN) ou forme
-# tolérée "DELETE FILE: chemin" (MAJUSCULES, début de ligne strict). La forme
-# tolérée n'est pas reconnue dans un fichier complet, où elle pourrait être du
-# contenu (voir _delete_target).
+# Delete: banner (same tolerances as START_PATTERN) or tolerated
+# form "DELETE FILE: path" (UPPERCASE, strict start of line). The tolerated
+# form is not recognized inside a complete file, where it might be
+# content (see _delete_target).
 DELETE_BANNER_PATTERN = re.compile(
     r"^\s*={2,}\s*DELETE\s+FILE\s*:?\s*(?P<path>.+?)\s*={2,}\s*$", re.IGNORECASE
 )
 DELETE_PLAIN_PATTERN = re.compile(r"^DELETE FILE\s*:\s*(?P<path>.+?)[*`\s]*$")
 
-# Mode patch : "FILE: chemin" - tolère **FILE: x** ou `FILE: x`
+# Patch mode: "FILE: path" - tolerates **FILE: x** or `FILE: x`
 PATCH_FILE_PATTERN = re.compile(r"^\s*[*`]*FILE\s*:\s*(?P<path>.+?)[*`\s]*$")
 FIND_PATTERN = re.compile(r"^FIND\s*:?\s*$")
 REPLACE_PATTERN = re.compile(r"^REPLACE\s*:?\s*$")
 PATCHNUM_PATTERN = re.compile(r"^PATCH\s+\d+\s*:?\s*$")
 
-# Fences markdown
+# Markdown fences
 FENCE_OPEN = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})\s*[\w+#.\-]*\s*$")
 FENCE_CLOSE = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})\s*$")
 
@@ -140,21 +138,21 @@ def _clean_path(raw: str) -> str:
 
 def _delete_target(line: str, allow_plain: bool):
     """
-    Chemin visé si `line` est une suppression, sinon None (chemin vide possible
-    si l'en-tête est dégénéré : l'appelant le signale en erreur).
-    `allow_plain` autorise la forme "DELETE FILE: chemin" : False dans un
-    fichier complet, où cette ligne peut légitimement faire partie du contenu.
+    Target path if `line` is a deletion, otherwise None (empty path possible
+    if the header is degenerate: the caller reports it as an error).
+    `allow_plain` allows the form "DELETE FILE: path": False inside a
+    complete file, where this line may legitimately be part of the content.
     """
     m = DELETE_BANNER_PATTERN.match(line)
     if not m and allow_plain:
         m = DELETE_PLAIN_PATTERN.match(line)
     if not m:
         return None
-    # strip("=") : une bannière sans chemin donne sinon le "chemin" "=".
+    # strip("="): a banner without a path would otherwise give the "path" "=".
     return _clean_path(m.group("path")).strip("= ")
 
 
-# --- Nettoyage des blocs ----------------------------------------------------
+# --- Block cleanup ----------------------------------------------------------
 
 def _count_fences(lines):
     return sum(1 for ln in lines if FENCE_OPEN.match(ln))
@@ -162,11 +160,11 @@ def _count_fences(lines):
 
 def clean_block(lines):
     """
-    Retire les lignes vides aux extrémités puis une éventuelle fence :
-    - fence ouvrante + fermante qui englobent tout le bloc : retirées ;
-    - fence fermante orpheline en fin (nombre de fences impair, pas
-      d'ouverture au début) : retirée.
-    Les fences au milieu du contenu ne sont jamais touchées.
+    Removes blank lines at both ends then any fence:
+    - opening + closing fence that enclose the whole block: removed;
+    - orphan closing fence at the end (odd number of fences, no
+      opening at the start): removed.
+    Fences in the middle of the content are never touched.
     """
     lines = list(lines)
     while lines and not lines[0].strip():
@@ -190,7 +188,7 @@ def clean_block(lines):
 
 
 def _strip_global_fence(text: str) -> str:
-    """Retire une fence qui enveloppe TOUT le texte (exactement 2 fences)."""
+    """Removes a fence that wraps the WHOLE text (exactly 2 fences)."""
     lines = text.splitlines()
     while lines and not lines[0].strip():
         lines.pop(0)
@@ -214,26 +212,26 @@ def _is_header(line: str) -> bool:
 
 def parse(text: str):
     """
-    Retourne (ops, errors).
-    ops, dans l'ordre du texte :
-      ("full", chemin, contenu)
-      ("patch", chemin, [(find, repl), ...])
-      ("delete", chemin, None)
+    Returns (ops, errors).
+    ops, in the order of the text:
+      ("full", path, content)
+      ("patch", path, [(find, repl), ...])
+      ("delete", path, None)
 
-    Parseur à états, une seule passe ligne par ligne :
-      idle        hors de tout bloc : la prose est ignorée
-      full        contenu d'un fichier complet : seuls un en-tête de fichier,
-                  la fin de fichier ou une bannière de suppression comptent
-                  (FIND, REPLACE, etc. y sont du contenu)
-      after_file  après l'en-tête de patch, en attente du premier FIND
-      find        lecture du bloc FIND
-      replace     lecture du bloc REPLACE
-    Hors de "full", tous les en-têtes sont reconnus à tout moment et
-    terminent le bloc en cours (finish).
+    State parser, a single pass line by line:
+      idle        outside any block: prose is ignored
+      full        content of a complete file: only a file header,
+                  the end of file or a delete banner count
+                  (FIND, REPLACE, etc. are content there)
+      after_file  after the patch header, waiting for the first FIND
+      find        reading the FIND block
+      replace     reading the REPLACE block
+    Outside "full", all headers are recognized at any time and
+    end the current block (finish).
 
-    Piège : sans fin explicite, le texte qui suit un bloc complet ou un
-    REPLACE (prose comprise) est absorbé dans son contenu. D'où la règle
-    "rien après le dernier bloc" du prompt.
+    Trap: without an explicit end, the text following a complete block or a
+    REPLACE (including prose) is absorbed into its content. Hence the rule
+    "nothing after the last block" in the prompt.
     """
     ops, errors = [], []
     lines = _strip_global_fence(text).splitlines()
@@ -248,19 +246,19 @@ def parse(text: str):
         return "\n".join(clean_block(block))
 
     def finish():
-        """Clôt le bloc en cours (émet son op ou une erreur) et revient à idle."""
+        """Closes the current block (emits its op or an error) and returns to idle."""
         nonlocal state, path, buf, find_buf, patches
         if state == "full":
             ops.append(("full", path, joined(buf)))
         elif state == "replace":
             patches.append((joined(find_buf), joined(buf)))
         elif state == "find":
-            errors.append(f"{path} : bloc FIND sans REPLACE (ignoré).")
+            errors.append(f"{path} : FIND block without REPLACE (ignored).")
         if state in ("after_file", "find", "replace"):
             if patches:
                 ops.append(("patch", path, patches))
             else:
-                errors.append(f"{path} : aucun patch exploitable.")
+                errors.append(f"{path} : no usable patch.")
         state, path, buf, find_buf, patches = "idle", None, [], None, []
 
     def prev_nonblank(i):
@@ -276,14 +274,15 @@ def parse(text: str):
         return lines[j] if j < len(lines) else ""
 
     for i, line in enumerate(lines):
-        # Une fence sans langage juste avant un en-tête est l'ouverture
-        # (parasite) du bloc suivant, pas la fermeture du bloc en cours.
+        # A fence without a language just before a header is the opening
+        # (spurious) fence of the next block, not the closing of the current
+        # block.
         if state != "idle" and FENCE_CLOSE.match(line) and _is_header(next_nonblank(i)):
             if FENCE_CLOSE.match(prev_nonblank(i)) or _count_fences(buf) % 2 == 0:
                 continue
 
-        # Fichier complet : seuls fin, nouvel en-tête et bannière de
-        # suppression comptent (la forme DELETE nue serait du contenu).
+        # Complete file: only the end, a new header and the delete
+        # banner count (the bare DELETE form would be content).
         if state == "full":
             m = START_PATTERN.match(line)
             target = _delete_target(line, allow_plain=False)
@@ -299,7 +298,7 @@ def parse(text: str):
                 buf.append(line)
             continue
 
-        # Autres états : en-têtes reconnus partout.
+        # Other states: headers recognized everywhere.
         m = START_PATTERN.match(line)
         if m:
             finish()
@@ -322,7 +321,7 @@ def parse(text: str):
         if state == "after_file":
             if FIND_PATTERN.match(line):
                 state, buf = "find", []
-            # PATCH n, fences, lignes vides, prose : ignorés
+            # PATCH n, fences, blank lines, prose: ignored
         elif state == "find":
             if REPLACE_PATTERN.match(line):
                 find_buf, buf = buf, []
@@ -340,28 +339,29 @@ def parse(text: str):
                 state = "find"
             else:
                 buf.append(line)
-        # idle : ignoré
+        # idle: ignored
 
     finish()
     return ops, errors
 
 
-# --- Système de fichiers (avec cache mémoire) -------------------------------
+# --- File system (with in-memory cache) -------------------------------------
 
-_DELETED = object()  # marqueur de suppression dans Workspace.cache
+_DELETED = object()  # deletion marker in Workspace.cache
 
 
 class Workspace:
     """
-    Accès disque + cache mémoire, indexé par chemin résolu.
+    Disk access + in-memory cache, indexed by resolved path.
 
-    Le cache sert à deux choses :
-    - les opérations successives sur un même fichier voient le résultat des
-      précédentes (patches enchaînés, suppression puis recréation, ...) ;
-    - en --dry-run il est la seule "écriture" : rien ne touche le disque, mais
-      exists() et read() reflètent l'état simulé.
-    Valeur en cache : texte du fichier (fins de ligne normalisées en LF) ou
-    _DELETED. `crlf` retient les fichiers lus en CRLF pour les réécrire ainsi.
+    The cache serves two purposes:
+    - successive operations on the same file see the result of the
+      previous ones (chained patches, delete then recreate, ...);
+    - in --dry-run it is the only "write": nothing touches the disk, but
+      exists() and read() reflect the simulated state.
+    Cache value: file text (line endings normalized to LF) or
+    _DELETED. `crlf` remembers files read as CRLF so they are rewritten that
+    way.
     """
 
     def __init__(self, root: Path, dry_run: bool):
@@ -373,7 +373,7 @@ class Workspace:
     def resolve(self, rel: str) -> Path:
         p = (self.root / rel).resolve()
         if p != self.root and self.root not in p.parents:
-            raise ValueError(f"chemin hors du dossier racine : {rel}")
+            raise ValueError(f"path outside the root folder: {rel}")
         return p
 
     def was_deleted(self, p: Path) -> bool:
@@ -387,7 +387,7 @@ class Workspace:
     def read(self, p: Path) -> str:
         if p in self.cache:
             if self.cache[p] is _DELETED:
-                raise FileNotFoundError(f"fichier supprimé : {p}")
+                raise FileNotFoundError(f"file deleted: {p}")
             return self.cache[p]
         raw = p.read_bytes().decode("utf-8")
         self.crlf[p] = "\r\n" in raw
@@ -404,24 +404,24 @@ class Workspace:
         p.write_bytes(out.encode("utf-8"))
 
     def delete(self, p: Path):
-        """Supprime un fichier (jamais un dossier, jamais les dossiers parents)."""
+        """Deletes a file (never a directory, never parent directories)."""
         if p not in self.cache and p.is_dir():
-            raise ValueError("c'est un dossier (la suppression ne concerne que les fichiers)")
+            raise ValueError("this is a directory (deletion only applies to files)")
         if not self.exists(p):
-            raise ValueError("fichier introuvable (rien à supprimer)")
+            raise ValueError("file not found (nothing to delete)")
         if not self.dry_run:
             p.unlink()
         self.cache[p] = _DELETED
-        # Un fichier recréé ensuite est un fichier neuf : fins de ligne LF.
+        # A file recreated afterwards is a new file: LF line endings.
         self.crlf.pop(p, None)
 
 
-# --- Application d'un patch -------------------------------------------------
+# --- Applying a patch -------------------------------------------------------
 
 def apply_one(text: str, find: str, repl: str) -> str:
-    """Remplace `find` (unique) par `repl`. Lève ValueError sinon."""
+    """Replaces `find` (unique) with `repl`. Raises ValueError otherwise."""
     if not find.strip():
-        raise ValueError("bloc FIND vide")
+        raise ValueError("empty FIND block")
 
     n = text.count(find)
     if n == 1:
@@ -429,11 +429,11 @@ def apply_one(text: str, find: str, repl: str) -> str:
             return text.replace(find + "\n", "", 1)
         return text.replace(find, repl, 1)
     if n > 1:
-        raise ValueError(f"bloc FIND ambigu ({n} occurrences)")
+        raise ValueError(f"ambiguous FIND block ({n} occurrences)")
 
-    # Repli sans espaces de fin de ligne : un bloc recopié depuis un chat ou
-    # un éditeur perd (ou gagne) souvent ces espaces invisibles. On n'accepte
-    # le résultat que s'il reste unique.
+    # Fallback without trailing whitespace: a block copied from a chat or
+    # an editor often loses (or gains) these invisible spaces. The
+    # result is accepted only if it remains unique.
     tl = text.split("\n")
     fl = find.split("\n")
     hits = [
@@ -445,23 +445,23 @@ def apply_one(text: str, find: str, repl: str) -> str:
         new = repl.split("\n") if repl != "" else []
         return "\n".join(tl[:i] + new + tl[i + len(fl):])
     if len(hits) > 1:
-        raise ValueError(f"bloc FIND ambigu ({len(hits)} occurrences, espaces ignorés)")
-    raise ValueError("bloc FIND introuvable")
+        raise ValueError(f"ambiguous FIND block ({len(hits)} occurrences, whitespace ignored)")
+    raise ValueError("FIND block not found")
 
 
-# --- Presse-papiers ---------------------------------------------------------
+# --- Clipboard --------------------------------------------------------------
 
 PROMPT_FILE = "PROMPT_CLAUDE.md"
 
 
 def _copy_windows(text: str) -> bool:
     """
-    Écrit dans le presse-papiers Windows via l'API Win32 en ctypes.
+    Writes to the Windows clipboard via the Win32 API in ctypes.
 
-    Pourquoi ne pas lancer "clip" ? Parce qu'un sous-processus passe par la
-    console, dont l'encodage est une plaie (CP850, CP1252, UTF-8...). En
-    appelant directement SetClipboardData, on dépose la chaîne UTF-16 telle
-    quelle, sans dépendre de la page de codes de la console.
+    Why not launch "clip"? Because a subprocess goes through the
+    console, whose encoding is a pain (CP850, CP1252, UTF-8...). By
+    calling SetClipboardData directly, we place the UTF-16 string as-is,
+    without depending on the console code page.
     """
     import ctypes
     from ctypes import wintypes
@@ -472,9 +472,9 @@ def _copy_windows(text: str) -> bool:
     user32 = ctypes.windll.user32
     kernel32 = ctypes.windll.kernel32
 
-    # Sur Windows 64 bits, un HANDLE/pointeur ne tient pas dans un int : sans
-    # restype explicite, ctypes tronque la valeur et le memmove écrit n'importe
-    # où. On déclare donc les signatures précises utilisées.
+    # On 64-bit Windows, a HANDLE/pointer does not fit in an int: without an
+    # explicit restype, ctypes truncates the value and memmove writes
+    # anywhere. So we declare the precise signatures used.
     kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
     kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
     kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
@@ -484,7 +484,7 @@ def _copy_windows(text: str) -> bool:
     user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
     user32.SetClipboardData.restype = wintypes.HANDLE
 
-    # Chaîne UTF-16 terminée par un NUL (le format attendu par le presse-papiers).
+    # UTF-16 string terminated by a NUL (the format expected by the clipboard).
     data = (text + "\0").encode("utf-16-le")
 
     if not user32.OpenClipboard(0):
@@ -503,8 +503,8 @@ def _copy_windows(text: str) -> bool:
             ctypes.memmove(p, data, len(data))
         finally:
             kernel32.GlobalUnlock(h)
-        # Après SetClipboardData, la mémoire appartient au presse-papiers :
-        # il ne faut PAS la libérer nous-mêmes.
+        # After SetClipboardData, the memory belongs to the clipboard:
+        # we must NOT free it ourselves.
         if not user32.SetClipboardData(CF_UNICODETEXT, h):
             kernel32.GlobalFree(h)
             return False
@@ -514,14 +514,14 @@ def _copy_windows(text: str) -> bool:
 
 
 def _copy_command(cmd, text: str):
-    """Lance un utilitaire externe (pbcopy, xclip, xsel, wl-copy) qui lit stdin."""
+    """Runs an external utility (pbcopy, xclip, xsel, wl-copy) that reads stdin."""
     subprocess.run(cmd, input=text.encode("utf-8"), check=True)
 
 
 def write_clipboard(text: str) -> bool:
     """
-    Écrit `text` dans le presse-papiers selon la plateforme, avec plusieurs
-    replis en cascade. Retourne True si une méthode a réussi.
+    Writes `text` to the clipboard depending on the platform, with several
+    cascading fallbacks. Returns True if one method succeeded.
     """
     system = platform.system()
 
@@ -530,7 +530,7 @@ def write_clipboard(text: str) -> bool:
             if _copy_windows(text):
                 return True
         except OSError:
-            # Échec de l'API Win32 : on tentera pyperclip en repli.
+            # Failure of the Win32 API: we will try pyperclip as a fallback.
             pass
     elif system == "Darwin":
         try:
@@ -539,7 +539,7 @@ def write_clipboard(text: str) -> bool:
         except (FileNotFoundError, subprocess.CalledProcessError):
             pass
     else:
-        # Linux et autres Unix : Wayland d'abord, puis X11 (xclip, xsel).
+        # Linux and other Unix: Wayland first, then X11 (xclip, xsel).
         for cmd in (
             ["wl-copy"],
             ["xclip", "-selection", "clipboard", "-i"],
@@ -551,8 +551,8 @@ def write_clipboard(text: str) -> bool:
             except (FileNotFoundError, subprocess.CalledProcessError):
                 continue
 
-    # Repli optionnel : pyperclip, s'il est installé (bibliothèque tierce,
-    # donc pas de dépendance dure).
+    # Optional fallback: pyperclip, if installed (third-party library,
+    # so not a hard dependency).
     try:
         import pyperclip  # type: ignore
 
@@ -563,39 +563,39 @@ def write_clipboard(text: str) -> bool:
 
 
 def copy_prompt() -> int:
-    """Copie PROMPT_CLAUDE.md (à côté du script) dans le presse-papiers."""
+    """Copies PROMPT_CLAUDE.md (next to the script) to the clipboard."""
     prompt_path = Path(__file__).resolve().parent / PROMPT_FILE
     try:
         text = prompt_path.read_text(encoding="utf-8")
     except OSError as exc:
-        print(f"Erreur : impossible de lire '{prompt_path}' : {exc}", file=sys.stderr)
+        print(f"Error: cannot read '{prompt_path}': {exc}", file=sys.stderr)
         return 1
 
     if write_clipboard(text):
-        print(f"Prompt copié dans le presse-papiers : {prompt_path}")
+        print(f"Prompt copied to the clipboard: {prompt_path}")
         return 0
 
     print(
-        "Erreur : impossible d'écrire dans le presse-papiers "
-        "(aucune méthode système n'a fonctionné, pyperclip non installé).",
+        "Error: cannot write to the clipboard "
+        "(no system method worked, pyperclip not installed).",
         file=sys.stderr,
     )
     return 1
 
 
-# --- Programme principal ----------------------------------------------------
+# --- Main program -----------------------------------------------------------
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Applique les fichiers complets, patches FIND / REPLACE et suppressions d'une réponse de Claude."
+        description="Applies the complete files, FIND / REPLACE patches and deletions of a Claude answer."
     )
-    ap.add_argument("source", nargs="?", default="-", help="fichier texte à lire ('-' ou absent = stdin)")
-    ap.add_argument("--root", default=".", help="dossier racine du projet (défaut : dossier courant)")
-    ap.add_argument("--dry-run", action="store_true", help="simule sans rien écrire ni supprimer")
+    ap.add_argument("source", nargs="?", default="-", help="text file to read ('-' or absent = stdin)")
+    ap.add_argument("--root", default=".", help="root folder of the project (default: current directory)")
+    ap.add_argument("--dry-run", action="store_true", help="simulates without writing or deleting anything")
     ap.add_argument(
         "--copy-prompt",
         action="store_true",
-        help="copie le contenu de PROMPT_CLAUDE.md dans le presse-papiers puis quitte",
+        help="copies the contents of PROMPT_CLAUDE.md to the clipboard then quits",
     )
     args = ap.parse_args()
 
@@ -604,22 +604,22 @@ def main():
 
     if args.source == "-":
         if sys.stdin.isatty():
-            ap.error("aucune source : donne un fichier ou envoie le texte sur stdin")
+            ap.error("no source: give a file or send the text on stdin")
         source_text = sys.stdin.read()
     else:
         try:
             source_text = Path(args.source).read_text(encoding="utf-8")
         except OSError as exc:
-            print(f"Erreur : impossible de lire '{args.source}' : {exc}", file=sys.stderr)
+            print(f"Error: cannot read '{args.source}': {exc}", file=sys.stderr)
             sys.exit(1)
 
     if not source_text.strip():
-        print("Erreur : la source est vide.", file=sys.stderr)
+        print("Error: the source is empty.", file=sys.stderr)
         sys.exit(1)
 
     ops, errors = parse(source_text)
     if not ops and not errors:
-        print("Aucun bloc détecté (fichier complet, patch FIND / REPLACE ou suppression).", file=sys.stderr)
+        print("No block detected (complete file, FIND / REPLACE patch or deletion).", file=sys.stderr)
         sys.exit(1)
 
     ws = Workspace(Path(args.root), args.dry_run)
@@ -627,7 +627,7 @@ def main():
 
     for kind, rel, payload in ops:
         if not rel:
-            errors.append("Bloc ignoré : chemin de fichier vide.")
+            errors.append("Block ignored: empty file path.")
             continue
         try:
             p = ws.resolve(rel)
@@ -636,47 +636,47 @@ def main():
                 recreated = ws.was_deleted(p)
                 existed = ws.exists(p)
                 if existed and p not in ws.cache:
-                    ws.read(p)  # pour retenir le style de fin de ligne
+                    ws.read(p)  # to remember the line-ending style
                 content = payload if payload.endswith("\n") else payload + "\n"
                 ws.write(p, content)
-                label = "remplacé" if existed else ("recréé" if recreated else "créé")
-                done.append(f"{label} : {rel}")
+                label = "replaced" if existed else ("recreated" if recreated else "created")
+                done.append(f"{label}: {rel}")
 
             elif kind == "delete":
                 ws.delete(p)
-                done.append(f"supprimé : {rel}")
+                done.append(f"deleted: {rel}")
 
             else:  # patch
                 if not ws.exists(p):
                     if ws.was_deleted(p):
-                        raise ValueError("fichier supprimé plus tôt dans cette réponse (un patch exige un fichier existant)")
-                    raise ValueError("fichier introuvable (un patch exige un fichier existant)")
+                        raise ValueError("file deleted earlier in this answer (a patch requires an existing file)")
+                    raise ValueError("file not found (a patch requires an existing file)")
                 text = ws.read(p)
                 failed = False
                 for k, (find, repl) in enumerate(payload, 1):
                     try:
                         text = apply_one(text, find, repl)
                     except ValueError as exc:
-                        errors.append(f"{rel} (patch {k}/{len(payload)}) : {exc}.")
+                        errors.append(f"{rel} (patch {k}/{len(payload)}): {exc}.")
                         failed = True
                 if failed:
-                    errors.append(f"{rel} : ce bloc de patches n'a PAS été appliqué (tout ou rien).")
+                    errors.append(f"{rel}: this block of patches was NOT applied (all or nothing).")
                 else:
                     ws.write(p, text)
-                    done.append(f"patché ({len(payload)}) : {rel}")
+                    done.append(f"patched ({len(payload)}): {rel}")
 
         except (OSError, ValueError, UnicodeDecodeError) as exc:
-            errors.append(f"{rel} : {exc}")
+            errors.append(f"{rel}: {exc}")
 
-    print("[DRY-RUN] aucun fichier écrit ni supprimé.\n" if args.dry_run else "", end="")
-    print("Résultat :")
+    print("[DRY-RUN] no file written or deleted.\n" if args.dry_run else "", end="")
+    print("Result:")
     for d in done:
         print(f"  - {d}")
     if errors:
-        print("\nErreurs :")
+        print("\nErrors:")
         for e in errors:
             print(f"  - {e}")
-    print(f"\nTotal : {len(done)} opération(s) appliquée(s), {len(errors)} erreur(s).")
+    print(f"\nTotal: {len(done)} operation(s) applied, {len(errors)} error(s).")
     sys.exit(1 if errors else 0)
 
 

@@ -1,12 +1,12 @@
-# RÈGLES DE SORTIE (réponse appliquée automatiquement par script)
+# OUTPUT RULES (answer applied automatically by script)
 
-1. Structure : analyse courte AVANT les modifications (fichiers touchés, comportement, risques ; 3 à 6 lignes), puis UNIQUEMENT des blocs. Aucun texte entre les blocs ni après le dernier : le script l'absorberait dans le contenu du dernier fichier ou du dernier REPLACE.
-2. Mode : choisis le moins coûteux en tokens ; à égalité, MODE SCRIPT (plus robuste). Fichier nouveau ou très modifié = MODE SCRIPT. Patch = fichier existant uniquement.
-3. Formats exacts (chaque marqueur seul sur sa ligne, en début de ligne, sans fence markdown ; les opérations s'exécutent dans l'ordre) :
-- MODE SCRIPT : `=== FILE: chemin ===`, puis le fichier COMPLET, puis `=== END FILE ===` (obligatoire après chaque fichier).
-- MODE PETITE IA, un patch : `FILE: chemin`, `FIND`, bloc exact, `REPLACE`, nouveau bloc (REPLACE vide = bloc supprimé).
-- Plusieurs patches : `FILE: chemin`, puis pour chaque patch `PATCH n`, `FIND`, bloc exact, `REPLACE`, nouveau bloc.
-- Suppression d'un fichier : `=== DELETE FILE: chemin ===`, rien d'autre.
-4. FIND : copié verbatim depuis le contexte fourni (indentation exacte) et unique dans le fichier ; ajoute des lignes voisines si besoin.
-5. Interdits : pseudo-code, "...", "reste inchangé", numéros de ligne, fences markdown autour des blocs, fichier complet abrégé ou partiel.
-6. Un fichier dont le contenu contiendrait lui-même une ligne d'en-tête du format (début de ligne : `=== FILE`, `=== END FILE`, `=== DELETE FILE`, `FILE:`) est à éviter ou à reformuler.
+1. Structure: a short analysis BEFORE the changes (files touched, behavior, risks; 3 to 6 lines), then ONLY blocks. No text between the blocks or after the last one: the script would absorb it into the content of the last file or the last REPLACE.
+2. Mode: choose the cheapest in tokens; on a tie, SCRIPT MODE (more robust). New or heavily modified file = SCRIPT MODE. Patch = existing file only.
+3. Exact formats (each marker alone on its line, at the start of the line, without a markdown fence; operations run in order):
+- SCRIPT MODE: `=== FILE: path ===`, then the COMPLETE file, then `=== END FILE ===` (mandatory after each file).
+- SMALL-AI MODE, one patch: `FILE: path`, `FIND`, exact block, `REPLACE`, new block (empty REPLACE = block deleted).
+- Several patches: `FILE: path`, then for each patch `PATCH n`, `FIND`, exact block, `REPLACE`, new block.
+- Deleting a file: `=== DELETE FILE: path ===`, nothing else.
+4. FIND: copied verbatim from the provided context (exact indentation) and unique in the file; add neighboring lines if needed.
+5. Forbidden: pseudo-code, "...", "left unchanged", line numbers, markdown fences around blocks, abridged or partial complete file.
+6. A file whose content would itself contain a header line of the format (start of line: `=== FILE`, `=== END FILE`, `=== DELETE FILE`, `FILE:`) should be avoided or reworded.
